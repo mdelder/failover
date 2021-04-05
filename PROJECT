@@ -1,0 +1,18 @@
+domain: open-cluster-management.io
+layout: go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: klusterlet-failover-controller
+repo: github.com/mdelder/klusterlet-failover-controller
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: open-cluster-management.io
+  group: failover
+  kind: FailoverConfig
+  path: github.com/mdelder/klusterlet-failover-controller/api/v1alpha1
+  version: v1alpha1
+version: "3"

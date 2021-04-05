@@ -1,0 +1,24 @@
+# permissions for end users to edit failoverconfigs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: failoverconfig-editor-role
+rules:
+- apiGroups:
+  - failover.open-cluster-management.io
+  resources:
+  - failoverconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - failover.open-cluster-management.io
+  resources:
+  - failoverconfigs/status
+  verbs:
+  - get
