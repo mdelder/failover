@@ -1,0 +1,34 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - failover.open-cluster-management.io
+  resources:
+  - failoverconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - failover.open-cluster-management.io
+  resources:
+  - failoverconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - failover.open-cluster-management.io
+  resources:
+  - failoverconfigs/status
+  verbs:
+  - get
+  - patch
+  - update

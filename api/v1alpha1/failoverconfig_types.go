@@ -25,11 +25,13 @@ import (
 
 // FailoverConfigSpec defines the desired state of FailoverConfig
 type FailoverConfigSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	AlternateHubs []Hub `json:"alternateHubs,required"`
+}
 
-	// Foo is an example field of FailoverConfig. Edit failoverconfig_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+type Hub struct {
+	Name string `json:"name,omitempty"`
+	// SecretRef corev1.SecretRef `json:"bootstrapKubeconfigSecretRef,omitempty"`
+	SecretRef string `json:"bootstrapKubeconfigSecretRef,omitempty"`
 }
 
 // FailoverConfigStatus defines the observed state of FailoverConfig
