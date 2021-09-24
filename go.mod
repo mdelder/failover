@@ -5,13 +5,13 @@ go 1.14
 replace github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1 // ensure compatible between controller-runtime and kube-openapi
 
 require (
-	github.com/go-bindata/go-bindata v3.1.2+incompatible // indirect
+	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/onsi/ginkgo v1.14.0 // indirect
 	github.com/onsi/gomega v1.10.1 // indirect
 	github.com/open-cluster-management/api v0.0.0-20201126023000-353dd8370f4d
 	github.com/open-cluster-management/registration v0.0.0-20210406070444-3c442daf8030
 	github.com/openshift/api v0.0.0-20201019163320-c6a5ec25f267
-	github.com/openshift/build-machinery-go v0.0.0-20200917070002-f171684f77ab // indirect
+	github.com/openshift/build-machinery-go v0.0.0-20210209125900-0da259a2c359
 	github.com/openshift/generic-admission-server v1.14.1-0.20200903115324-4ddcdd976480 // indirect
 	github.com/openshift/library-go v0.0.0-20201207213115-a0cd28f38065
 	github.com/spf13/cobra v1.0.0

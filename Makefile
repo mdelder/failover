@@ -111,7 +111,7 @@ build: generate fmt vet ## Build manager binary.
 # run: manifests generate fmt vet ## Run a controller from your host.
 # 	go run ./main.go
 run:
-	go run cmd/failover/main.go  agent --kubeconfig=$KUBECONFIG --namespace open-cluster-management-agent  --namespace open-cluster-management-agent --cluster-name test
+	go run cmd/failover/main.go  agent --kubeconfig=$(KUBECONFIG) --namespace open-cluster-management-agent  --namespace open-cluster-management-agent --cluster-name test
 
 docker-build: test ## Build docker image with the manager.
 	docker build -t ${IMG} .

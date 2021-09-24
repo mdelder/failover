@@ -4,13 +4,32 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"time"
-
-	"k8s.io/klog/v2"
 
 	"github.com/mdelder/failover/pkg/helpers"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
+	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/spf13/pflag"
+
+	"github.com/open-cluster-management/registration/pkg/spoke/hubclientcert"
+
+	"github.com/openshift/library-go/pkg/controller/controllercmd"
+	"github.com/openshift/library-go/pkg/operator/events"
+
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/klog/v2"
+)
+
+const (
+	// agentNameLength is the length of the spoke agent name which is generated automatically
+	agentNameLength = 5
+	// defaultSpokeComponentNamespace is the default namespace in which the spoke agent is deployed
+	defaultSpokeComponentNamespace = "open-cluster-management"
 )
 
 // FailoverAgentOptions holds configuration for spoke cluster agent
@@ -59,72 +78,37 @@ func NewFailoverAgentOptions() *FailoverAgentOptions {
 // temporary controller is stopped and the main controllers are started.
 func (o *FailoverAgentOptions) RunFailoverAgent(ctx context.Context, controllerContext *controllercmd.ControllerContext) error {
 
-	klog.Infof("Cluster name is %q and agent name is %q", o.ClusterName, o.AgentName)
-
 	klog.Infof("Let's get to work!")
 
 	// // create kube client
-	// spokeKubeClient, err := kubernetes.NewForConfig(controllerContext.KubeConfig)
-	// if err != nil {
-	// 	return err
-	// }
+	agentKubeClient, err := kubernetes.NewForConfig(controllerContext.KubeConfig)
+	if err != nil {
+		return err
+	}
 
-	// if err := o.Complete(spokeKubeClient.CoreV1(), ctx, controllerContext.EventRecorder); err != nil {
-	// 	klog.Fatal(err)
-	// }
+	if err := o.Complete(agentKubeClient.CoreV1(), ctx, controllerContext.EventRecorder); err != nil {
+		klog.Fatal(err)
+	}
 
-	// if err := o.Validate(); err != nil {
-	// 	klog.Fatal(err)
-	// }
+	if err := o.Validate(); err != nil {
+		klog.Fatal(err)
+	}
 
-	// klog.Infof("Cluster name is %q and agent name is %q", o.ClusterName, o.AgentName)
+	klog.Infof("Cluster name is %q and agent name is %q", o.ClusterName, o.AgentName)
 
 	// // create shared informer factory for spoke cluster
-	// spokeKubeInformerFactory := informers.NewSharedInformerFactory(spokeKubeClient, 10*time.Minute)
-	// namespacedSpokeKubeInformerFactory := informers.NewSharedInformerFactoryWithOptions(spokeKubeClient, 10*time.Minute, informers.WithNamespace(o.ComponentNamespace))
+	// agentKubeInformerFactory := informers.NewSharedInformerFactory(agentKubeClient, 10*time.Minute)
+	namespacedAgentKubeInformerFactory := informers.NewSharedInformerFactoryWithOptions(agentKubeClient, 10*time.Minute, informers.WithNamespace(o.ComponentNamespace))
 
-	// // get spoke cluster CA bundle
-	// spokeClusterCABundle, err := o.getSpokeClusterCABundle(controllerContext.KubeConfig)
-	// if err != nil {
-	// 	return err
-	// }
+	hubKubeconfigSecretController := hubclientcert.NewHubKubeconfigSecretController(
+		o.HubKubeconfigDir, o.ComponentNamespace, o.HubKubeconfigSecret,
+		agentKubeClient.CoreV1(),
+		namespacedAgentKubeInformerFactory.Core().V1().Secrets(),
+		controllerContext.EventRecorder,
+	)
+	go hubKubeconfigSecretController.Run(ctx, 1)
 
-	// // load bootstrap client config and create bootstrap clients
-	// bootstrapClientConfig, err := clientcmd.BuildConfigFromFlags("", o.BootstrapKubeconfig)
-	// if err != nil {
-	// 	return fmt.Errorf("unable to load bootstrap kubeconfig from file %q: %w", o.BootstrapKubeconfig, err)
-	// }
-	// bootstrapKubeClient, err := kubernetes.NewForConfig(bootstrapClientConfig)
-	// if err != nil {
-	// 	return err
-	// }
-	// bootstrapClusterClient, err := clusterv1client.NewForConfig(bootstrapClientConfig)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// // start a SpokeClusterCreatingController to make sure there is a spoke cluster on hub cluster
-	// spokeClusterCreatingController := managedcluster.NewManagedClusterCreatingController(
-	// 	o.ClusterName, o.SpokeExternalServerURLs,
-	// 	spokeClusterCABundle,
-	// 	bootstrapClusterClient,
-	// 	controllerContext.EventRecorder,
-	// )
-	// go spokeClusterCreatingController.Run(ctx, 1)
-
-	// hubKubeconfigSecretController := hubclientcert.NewHubKubeconfigSecretController(
-	// 	o.HubKubeconfigDir, o.ComponentNamespace, o.HubKubeconfigSecret,
-	// 	spokeKubeClient.CoreV1(),
-	// 	namespacedSpokeKubeInformerFactory.Core().V1().Secrets(),
-	// 	controllerContext.EventRecorder,
-	// )
-	// go hubKubeconfigSecretController.Run(ctx, 1)
-
-	// //
-
-	// controllerContext.EventRecorder.Event("HubClientConfigReady", "Client config for hub is ready.")
-
-	// <-ctx.Done()
+	<-ctx.Done()
 	return nil
 }
 
@@ -174,4 +158,57 @@ func (o *FailoverAgentOptions) Validate() error {
 	}
 
 	return nil
+}
+
+// Complete fills in missing values.
+func (o *FailoverAgentOptions) Complete(coreV1Client corev1client.CoreV1Interface, ctx context.Context, recorder events.Recorder) error {
+	// get component namespace of spoke agent
+	nsBytes, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	if err != nil {
+		o.ComponentNamespace = defaultSpokeComponentNamespace
+	} else {
+		o.ComponentNamespace = string(nsBytes)
+	}
+
+	// // dump data in hub kubeconfig secret into file system if it exists
+	// err = hubclientcert.DumpSecret(coreV1Client, o.ComponentNamespace, o.HubKubeconfigSecret,
+	// 	o.HubKubeconfigDir, ctx, recorder)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// load or generate cluster/agent names
+	o.ClusterName, o.AgentName = o.getOrGenerateClusterAgentNames()
+
+	return nil
+}
+
+// getOrGenerateClusterAgentNames returns cluster name and agent name.
+// Rules for picking up cluster name:
+//   1. Use cluster name from input arguments if 'cluster-name' is specified;
+//   2. Parse cluster name from the common name of the certification subject if the certification exists;
+//   3. Fallback to cluster name in the mounted secret if it exists;
+//   4. TODO: Read cluster name from openshift struct if the agent is running in an openshift cluster;
+//   5. Generate a random cluster name then;
+
+// Rules for picking up agent name:
+//   1. Parse agent name from the common name of the certification subject if the certification exists;
+//   2. Fallback to agent name in the mounted secret if it exists;
+//   3. Generate a random agent name then;
+func (o *FailoverAgentOptions) getOrGenerateClusterAgentNames() (string, string) {
+	clusterName := generateClusterName()
+	// generate random agent name
+	agentName := generateAgentName()
+
+	return clusterName, agentName
+}
+
+// generateClusterName generates a name for spoke cluster
+func generateClusterName() string {
+	return string(uuid.NewUUID())
+}
+
+// generateAgentName generates a random name for spoke cluster agent
+func generateAgentName() string {
+	return utilrand.String(agentNameLength)
 }

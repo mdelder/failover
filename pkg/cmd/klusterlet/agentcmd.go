@@ -11,9 +11,10 @@ import (
 
 func NewFailoverAgent() *cobra.Command {
 	agentOptions := klusterlet.NewFailoverAgentOptions()
-	cmd := controllercmd.
-		NewControllerCommandConfig("failover-agent", version.Get(), agentOptions.RunFailoverAgent).
-		NewCommand()
+	cmdConfig := controllercmd.
+		NewControllerCommandConfig("failover-agent", version.Get(), agentOptions.RunFailoverAgent)
+	cmdConfig.DisableLeaderElection = true
+	cmd := cmdConfig.NewCommand()
 	cmd.Use = "agent"
 	cmd.Short = "Start the Cluster Failover Agent"
 
